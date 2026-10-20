@@ -10,6 +10,9 @@ jobs:
     name: Issue Lava Lamp Holobyte
     runs-on: ubuntu-latest
     if: ${{ github.event.pull_request.merged }}
+    permissions:
+      issues: write
+      pull-requests: write
     steps:
       - id: check_if_contributor_is_external
         name: Check if contributor is external
@@ -20,7 +23,7 @@ jobs:
         run: gh pr edit "$NUMBER" --add-label "$LABELS"
         if: steps.check_if_contributor_is_external.outputs.is_external == 'true'
         env:
-          GH_TOKEN: ${{ secrets.HOLOPIN_LABELER }}
+          GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           NUMBER: ${{ github.event.pull_request.number }}
           LABELS: contribution
@@ -28,11 +31,14 @@ jobs:
     name: Issue Global Contribution badge
     runs-on: ubuntu-latest
     if: github.event.label.name == 'outstanding contribution'
+    permissions:
+      issues: write
+      pull-requests: write
     steps:
       - name: Issue Global Contribution badge
         run: gh pr edit "$NUMBER" --add-label "$LABELS"
         env:
-          GH_TOKEN: ${{ secrets.HOLOPIN_LABELER }}
+          GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           NUMBER: ${{ github.event.pull_request.number }}
           LABELS: "[automation] outstanding contribution"
