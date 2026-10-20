@@ -49,9 +49,7 @@ const fetchWithRetry = async (url: string, retries = 2) => {
 		} catch (error) {
 			lastError = error;
 			if (attempt < retries) {
-				await new Promise((resolve) =>
-					setTimeout(resolve, 250 * 2 ** attempt),
-				);
+				await new Promise((resolve) => setTimeout(resolve, 250 * 2 ** attempt));
 			}
 		}
 	}
@@ -59,49 +57,73 @@ const fetchWithRetry = async (url: string, retries = 2) => {
 	throw lastError;
 };
 
-const res = await fetchWithRetry(
-	`https://gh-code.developers.cloudflare.com/${repo}/${commit}/${file}`,
-);
+const sourceUrl = `https://github.com/${repo}/blob/${commit}/${file
+	.split("/")
+	.map(encodeURIComponent)
+	.join("/")}`;
+let res: Response | undefined;
 
-if (!res.ok) {
+try {
+	res = await fetchWithRetry(
+		`https://gh-code.developers.cloudflare.com/${repo}/${commit}/${file}`,
+	);
+} catch (error) {
+	console.warn(`[GitHubCode] Unable to fetch ${sourceUrl}.`, error);
+}
+
+if (res && !res.ok) {
 	throw new Error(`[GitHubCode] Received ${res.status} from Worker.`);
 }
 
-const content = await res.text();
-let contentLines = content.split("\n");
+let contentLines: string[] | undefined;
 
-if (lines) {
-	const [start, end] = lines;
+if (res) {
+	contentLines = (await res.text()).split("\n");
 
-	if (contentLines.length < end - 1) {
-		throw new Error(
-			`[GitHubCode] End line requested is beyond content length (${contentLines.length}).`,
+	if (lines) {
+		const [start, end] = lines;
+
+		if (contentLines.length < end - 1) {
+			throw new Error(
+				`[GitHubCode] End line requested is beyond content length (${contentLines.length}).`,
+			);
+		}
+
+		contentLines = contentLines.slice(start - 1, end);
+	} else if (tag) {
+		const startTag = contentLines.findIndex((x) =>
+			x.includes(`<docs-tag name="${tag}">`),
 		);
+		const endTag = contentLines.findIndex((x) =>
+			x.includes(`</docs-tag name="${tag}">`),
+		);
+
+		if (startTag === -1 || endTag === -1) {
+			throw new Error(
+				`[GitHubCode] Unable to find a region using tag "${tag}".`,
+			);
+		}
+
+		contentLines = contentLines.slice(startTag + 1, endTag);
 	}
 
-	contentLines = contentLines.slice(start - 1, end);
-} else if (tag) {
-	const startTag = contentLines.findIndex((x) =>
-		x.includes(`<docs-tag name="${tag}">`),
+	contentLines = contentLines.filter(
+		(line) => !/<[/]?docs-tag name=".*">/.test(line),
 	);
-	const endTag = contentLines.findIndex((x) =>
-		x.includes(`</docs-tag name="${tag}">`),
-	);
-
-	if (startTag === -1 || endTag === -1) {
-		throw new Error(`[GitHubCode] Unable to find a region using tag "${tag}".`);
-	}
-
-	contentLines = contentLines.slice(startTag + 1, endTag);
 }
-
-contentLines = contentLines.filter(
-	(line) => !/<[/]?docs-tag name=".*">/.test(line),
-);
 
 const Wrapper = useTypeScriptExample ? TypeScriptExample : Fragment;
 ---
 
-<Wrapper code={code}>
-	<Code {...code} code={contentLines.join("\n")} lang={lang} />
-</Wrapper>
+{
+	contentLines ? (
+		<Wrapper code={code}>
+			<Code {...code} code={contentLines.join("\n")} lang={lang} />
+		</Wrapper>
+	) : (
+		<p>
+			Code example is temporarily unavailable.{" "}
+			<a href={sourceUrl}>View it on GitHub</a>.
+		</p>
+	)
+}
