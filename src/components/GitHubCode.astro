@@ -40,7 +40,26 @@ const props = z
 const { repo, commit, file, lang, lines, tag, useTypeScriptExample, code } =
 	props.parse(Astro.props);
 
-const res = await fetch(
+const fetchWithRetry = async (url: string, retries = 2) => {
+	let lastError: unknown;
+
+	for (let attempt = 0; attempt <= retries; attempt++) {
+		try {
+			return await fetch(url);
+		} catch (error) {
+			lastError = error;
+			if (attempt < retries) {
+				await new Promise((resolve) =>
+					setTimeout(resolve, 250 * 2 ** attempt),
+				);
+			}
+		}
+	}
+
+	throw lastError;
+};
+
+const res = await fetchWithRetry(
 	`https://gh-code.developers.cloudflare.com/${repo}/${commit}/${file}`,
 );
 
