@@ -3,6 +3,7 @@ import { z } from "astro:schema";
 import { Code } from "@astrojs/starlight/components";
 import TypeScriptExample from "./TypeScriptExample.astro";
 import type { ComponentProps } from "astro/types";
+import { fetchWithFallback } from "~/util/fetch";
 
 type Props = z.infer<typeof props>;
 
@@ -40,8 +41,9 @@ const props = z
 const { repo, commit, file, lang, lines, tag, useTypeScriptExample, code } =
 	props.parse(Astro.props);
 
-const res = await fetch(
+const res = await fetchWithFallback(
 	`https://gh-code.developers.cloudflare.com/${repo}/${commit}/${file}`,
+	`https://raw.githubusercontent.com/${repo}/${commit}/${file}`,
 );
 
 if (!res.ok) {
